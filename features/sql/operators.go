@@ -21,7 +21,9 @@ func InsertRow(ctx context.Context, conn *pgx.Conn, booking *tools.Booking) erro
 		booking.StartTime,
 		booking.EndTime,
 	)
-	fmt.Println(err)
+	if err != nil {
+		fmt.Println(err)
+	}
 	return err
 }
 
@@ -29,7 +31,7 @@ func SelectAll(ctx context.Context, conn *pgx.Conn) ([]tools.Booking, error) {
 	var booking tools.Booking
 	var bookings []tools.Booking
 
-	query := `SELECT place_id, user_name, user_phone, start_time, end_time FROM bookings`
+	query := `SELECT id, place_id, user_name, user_phone, start_time, end_time FROM bookings`
 
 	rows, err := conn.Query(ctx, query)
 	if err != nil {
@@ -40,6 +42,7 @@ func SelectAll(ctx context.Context, conn *pgx.Conn) ([]tools.Booking, error) {
 
 	for rows.Next() {
 		err := rows.Scan(
+			&booking.ID,
 			&booking.PlaceID,
 			&booking.UserName,
 			&booking.UserPhone,
@@ -55,4 +58,15 @@ func SelectAll(ctx context.Context, conn *pgx.Conn) ([]tools.Booking, error) {
 	}
 
 	return bookings, nil
+}
+
+func DeleteRow(ctx context.Context, conn *pgx.Conn, booking *tools.Booking) error {
+	query := `DELETE FROM bookings WHERE id = $1;`
+
+	_, err := conn.Exec(ctx, query, booking.ID)
+	if err != nil {
+		fmt.Println(err)
+	}
+	return err
+
 }

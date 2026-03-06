@@ -5,6 +5,7 @@ import (
 	"booking-service/tools"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 
@@ -31,9 +32,7 @@ func (c *Conn) SqlHandler(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)
 			w.Write(tableMarshal)
 		}
-	}
-
-	if r.Method == http.MethodPost {
+	} else if r.Method == http.MethodPost {
 		var booking *tools.Booking
 
 		body, err := io.ReadAll(r.Body)
@@ -52,6 +51,28 @@ func (c *Conn) SqlHandler(w http.ResponseWriter, r *http.Request) {
 			writeError(w, err, http.StatusInternalServerError)
 			return
 		}
+	} else if r.Method == http.MethodDelete {
+		var booking *tools.Booking
+
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			writeError(w, err, http.StatusInternalServerError)
+			return
+		}
+		err = json.Unmarshal(body, &booking)
+		if err != nil {
+			writeError(w, err, http.StatusBadRequest)
+			return
+		}
+
+		err = features.DeleteRow(c.Ctx, c.Conn, booking)
+		if err != nil {
+			writeError(w, err, http.StatusInternalServerError)
+			return
+		}
+	} else {
+		writeError(w, errors.New("unsupported method"), http.StatusBadRequest)
+		return
 	}
 
 }

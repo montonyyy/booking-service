@@ -5,20 +5,22 @@ import (
 	"booking-service/tools"
 	"context"
 	"encoding/json"
-	"errors"
 	"io"
+	"log"
 	"net/http"
 
-	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type Conn struct {
-	Conn *pgx.Conn
+	Conn *pgxpool.Pool
 	Ctx  context.Context
 }
 
 func (c *Conn) SqlHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method == http.MethodGet {
+
+	switch r.Method {
+	case http.MethodGet:
 		table, err := features.SelectAll(c.Ctx, c.Conn)
 		if err != nil {
 			writeError(w, err, http.StatusInternalServerError)
@@ -32,7 +34,8 @@ func (c *Conn) SqlHandler(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusOK)
 			w.Write(tableMarshal)
 		}
-	} else if r.Method == http.MethodPost {
+
+	case http.MethodPost:
 		var booking *tools.Booking
 
 		body, err := io.ReadAll(r.Body)
@@ -51,7 +54,10 @@ func (c *Conn) SqlHandler(w http.ResponseWriter, r *http.Request) {
 			writeError(w, err, http.StatusInternalServerError)
 			return
 		}
-	} else if r.Method == http.MethodDelete {
+		w.WriteHeader(http.StatusOK)
+		w.Write(body)
+
+	case http.MethodDelete:
 		var booking *tools.Booking
 
 		body, err := io.ReadAll(r.Body)
@@ -70,9 +76,23 @@ func (c *Conn) SqlHandler(w http.ResponseWriter, r *http.Request) {
 			writeError(w, err, http.StatusInternalServerError)
 			return
 		}
-	} else {
-		writeError(w, errors.New("unsupported method"), http.StatusBadRequest)
+		w.WriteHeader(http.StatusOK)
+		w.Write(body)
+
+	default:
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte(`{"error":"unsupported method"}`))
+	}
+}
+
+func writeError(w http.ResponseWriter, error error, status int) {
+	w.WriteHeader(status)
+	bodyWithError, err := json.Marshal(error)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		log.Println(err)
 		return
 	}
+	w.Write(bodyWithError)
 
 }

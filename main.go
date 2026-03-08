@@ -19,7 +19,12 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
-	server := &http.Server{Addr: ":8080"}
+	port := os.Getenv("SERVER_PORT")
+	if string(port[0]) != ":" {
+		port = ":" + port
+	}
+
+	server := &http.Server{Addr: port}
 
 	connection, err := pgxpool.New(ctx, os.Getenv("CONN_STRING"))
 
@@ -51,7 +56,7 @@ func main() {
 	}()
 
 	go func() {
-		err = http.ListenAndServe(":8080", nil)
+		err = http.ListenAndServe(port, nil)
 		log.Println(err)
 	}()
 

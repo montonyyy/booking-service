@@ -23,11 +23,12 @@ func Bot(ctx context.Context, conn *pgxpool.Pool, listener *pgx.Conn) error {
 		return err
 	}
 
-	go func() { // don't work, need fix
+	go func() {
 		for {
-			notification, err := listener.WaitForNotification(context.Background())
+			notification, err := listener.WaitForNotification(ctx)
 			if err != nil {
 				log.Println(err)
+				return
 			}
 
 			msg := tgbotapi.NewMessage(int64(userID), notification.Payload)

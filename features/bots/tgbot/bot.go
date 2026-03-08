@@ -23,7 +23,7 @@ func Bot(ctx context.Context, conn *pgxpool.Pool, listener *pgx.Conn) error {
 		return err
 	}
 
-	go func() {
+	go func() { // don't work, need fix
 		for {
 			notification, err := listener.WaitForNotification(context.Background())
 			if err != nil {

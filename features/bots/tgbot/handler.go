@@ -26,13 +26,27 @@ func Handler(ctx context.Context, conn *pgxpool.Pool, bot *tgbotapi.BotAPI, u *t
 		bot.Send(msg)
 
 	case "/list":
+		var lines []string
 		table, err := features.SelectAll(ctx, conn)
 		if err != nil {
 			msg := tgbotapi.NewMessage(u.Message.Chat.ID, "Ошибка при получении данных")
 			bot.Send(msg)
 			break
 		}
-		msg := tgbotapi.NewMessage(u.Message.Chat.ID, fmt.Sprintf("%v", table))
+
+		for _, line := range table {
+			str := fmt.Sprintf("ID: %d, Место: %d, Имя: %s, Телефон: %s, Нач. дата: %s, Кон. дата: %s \n",
+				line.ID,
+				line.PlaceID,
+				line.UserName,
+				line.UserPhone,
+				line.StartTime,
+				line.EndTime,
+			)
+			lines = append(lines, str)
+		}
+
+		msg := tgbotapi.NewMessage(u.Message.Chat.ID, strings.Join(lines, "\n"))
 		bot.Send(msg)
 
 	case "/add":
@@ -45,6 +59,11 @@ func Handler(ctx context.Context, conn *pgxpool.Pool, bot *tgbotapi.BotAPI, u *t
 		bot.Send(msg)
 
 		nextUpdate := WaitNextUpdate(*updates)
+		if nextUpdate == nil {
+			msg := tgbotapi.NewMessage(u.Message.Chat.ID, "Время ввода данных истекло. Повторите попытку")
+			bot.Send(msg)
+			break
+		}
 
 		if len(strings.Split(nextUpdate.Message.Text, " ")) == 5 {
 
@@ -68,8 +87,6 @@ func Handler(ctx context.Context, conn *pgxpool.Pool, bot *tgbotapi.BotAPI, u *t
 			bot.Send(msg)
 			break
 		}
-		msg = tgbotapi.NewMessage(nextUpdate.Message.Chat.ID, "Данные записаны")
-		bot.Send(msg)
 
 	case "/del":
 		booking := &tools.Booking{}
@@ -81,6 +98,11 @@ func Handler(ctx context.Context, conn *pgxpool.Pool, bot *tgbotapi.BotAPI, u *t
 		bot.Send(msg)
 
 		nextUpdate := WaitNextUpdate(*updates)
+		if nextUpdate == nil {
+			msg := tgbotapi.NewMessage(u.Message.Chat.ID, "Время ввода данных истекло. Повторите попытку")
+			bot.Send(msg)
+			break
+		}
 
 		if len(strings.Split(nextUpdate.Message.Text, " ")) == 1 {
 
@@ -100,8 +122,6 @@ func Handler(ctx context.Context, conn *pgxpool.Pool, bot *tgbotapi.BotAPI, u *t
 			bot.Send(msg)
 			break
 		}
-		msg = tgbotapi.NewMessage(nextUpdate.Message.Chat.ID, "Данные удалены")
-		bot.Send(msg)
 	}
 
 	return err

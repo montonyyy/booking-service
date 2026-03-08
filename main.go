@@ -33,6 +33,7 @@ func main() {
 	if err != nil {
 		log.Println(err)
 	}
+	defer listener.Close(ctx)
 	listener.Exec(ctx, "LISTEN updates")
 
 	var conn = &handlers.Conn{

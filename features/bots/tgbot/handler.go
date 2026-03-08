@@ -2,14 +2,18 @@ package bots
 
 import (
 	features "booking-service/features/sql"
+	"booking-service/tools"
 	"context"
 	"fmt"
+	"log"
+	"strings"
+	"time"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func Handler(ctx context.Context, conn *pgxpool.Pool, bot *tgbotapi.BotAPI, u *tgbotapi.Update) error {
+func Handler(ctx context.Context, conn *pgxpool.Pool, bot *tgbotapi.BotAPI, u *tgbotapi.Update, updates *tgbotapi.UpdatesChannel) error {
 
 	var err error = nil
 
@@ -31,48 +35,83 @@ func Handler(ctx context.Context, conn *pgxpool.Pool, bot *tgbotapi.BotAPI, u *t
 		msg := tgbotapi.NewMessage(u.Message.Chat.ID, fmt.Sprintf("%v", table))
 		bot.Send(msg)
 
-		/*
-			case "/add":
-				var booking *tools.Booking
+	case "/add":
+		booking := &tools.Booking{}
 
-				booking, err := // --> TODO
-				if err != nil {
-					msg := tgbotapi.NewMessage(u.Message.Chat.ID, "Ошибка при чтении сообщения")
-					bot.Send(msg)
-					break
-				}
+		msg := tgbotapi.NewMessage(u.Message.Chat.ID, `
+					Чтобы добавить запись, введите следующие значения:
+					{place_id} {user_name} {user_phone} {start_time} {end_time}
+					`)
+		bot.Send(msg)
 
-				err = features.InsertRow(ctx, conn, booking)
-				if err != nil {
-					msg := tgbotapi.NewMessage(u.Message.Chat.ID, "Ошибка при вставки данных")
-					bot.Send(msg)
-					break
-				}
-				msg := tgbotapi.NewMessage(u.Message.Chat.ID, "Данные записаны")
-				bot.Send(msg)
+		nextUpdate := WaitNextUpdate(*updates)
 
-			case "/del":
-				var booking *tools.Booking
+		if len(strings.Split(nextUpdate.Message.Text, " ")) == 5 {
 
-				booking, err := // --> TODO
-				if err != nil {
-					msg := tgbotapi.NewMessage(u.Message.Chat.ID, "Ошибка при чтении сообщения")
-					bot.Send(msg)
-					break
-				}
+			fmt.Sscanf(nextUpdate.Message.Text, "%d %s %s %s %s",
+				&booking.PlaceID,
+				&booking.UserName,
+				&booking.UserPhone,
+				&booking.StartTime,
+				&booking.EndTime,
+			)
+		} else {
+			log.Println("Ошибка при чтении данных")
+			msg := tgbotapi.NewMessage(nextUpdate.Message.Chat.ID, "Ошибка при чтении данных")
+			bot.Send(msg)
+			break
+		}
 
-				err = features.DeleteRow(ctx, conn, booking)
-				if err != nil {
-					msg := tgbotapi.NewMessage(u.Message.Chat.ID, "Ошибка при удалении данных")
-					bot.Send(msg)
-					break
-				}
-				msg := tgbotapi.NewMessage(u.Message.Chat.ID, "Данные удалены")
-				bot.Send(msg)
-		*/
+		err = features.InsertRow(ctx, conn, booking)
+		if err != nil {
+			msg := tgbotapi.NewMessage(nextUpdate.Message.Chat.ID, "Ошибка при вставки данных")
+			bot.Send(msg)
+			break
+		}
+		msg = tgbotapi.NewMessage(nextUpdate.Message.Chat.ID, "Данные записаны")
+		bot.Send(msg)
+
+	case "/del":
+		booking := &tools.Booking{}
+
+		msg := tgbotapi.NewMessage(u.Message.Chat.ID, `
+				Чтобы удалить запись, введите следующее значение:
+				{id}
+				`)
+		bot.Send(msg)
+
+		nextUpdate := WaitNextUpdate(*updates)
+
+		if len(strings.Split(nextUpdate.Message.Text, " ")) == 1 {
+
+			fmt.Sscanf(nextUpdate.Message.Text, "%d",
+				&booking.ID,
+			)
+		} else {
+			log.Println("Ошибка при чтении данных")
+			msg := tgbotapi.NewMessage(nextUpdate.Message.Chat.ID, "Ошибка при чтении данных")
+			bot.Send(msg)
+			break
+		}
+
+		err = features.DeleteRow(ctx, conn, booking)
+		if err != nil {
+			msg := tgbotapi.NewMessage(nextUpdate.Message.Chat.ID, "Ошибка при удалении данных")
+			bot.Send(msg)
+			break
+		}
+		msg = tgbotapi.NewMessage(nextUpdate.Message.Chat.ID, "Данные удалены")
+		bot.Send(msg)
 	}
 
-	// listen --> TODO
-
 	return err
+}
+
+func WaitNextUpdate(updates tgbotapi.UpdatesChannel) *tgbotapi.Update {
+	select {
+	case update := <-updates:
+		return &update
+	case <-time.After(60 * time.Second):
+		return nil
+	}
 }

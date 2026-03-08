@@ -3,6 +3,7 @@ package features
 import (
 	"booking-service/tools"
 	"context"
+	"fmt"
 	"log"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -23,7 +24,10 @@ func InsertRow(ctx context.Context, conn *pgxpool.Pool, booking *tools.Booking) 
 	)
 	if err != nil {
 		log.Println(err)
+	} else {
+		conn.Exec(ctx, "NOTIFY updates, $1", fmt.Sprintf("%s, %s", booking.UserName, booking.UserPhone))
 	}
+
 	return err
 }
 

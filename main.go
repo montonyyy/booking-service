@@ -11,6 +11,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -21,21 +22,28 @@ func main() {
 	server := &http.Server{Addr: ":8080"}
 
 	connection, err := pgxpool.New(ctx, os.Getenv("CONN_STRING"))
+
+	if err != nil {
+		log.Println("Ошибка при подключении к БД")
+		log.Panic(err)
+	}
+	defer connection.Close()
+
+	listener, err := pgx.Connect(ctx, os.Getenv("CONN_STRING"))
+	if err != nil {
+		log.Println(err)
+	}
+	listener.Exec(ctx, "LISTEN updates")
+
 	var conn = &handlers.Conn{
 		Conn: connection,
 		Ctx:  ctx,
 	}
 
-	if err != nil {
-		log.Println("Ошибка при подключении к БД")
-		panic(err)
-	}
-	defer connection.Close()
-
 	http.HandleFunc("/booking", conn.SqlHandler)
 
 	go func() {
-		err := bots.Bot(ctx, connection)
+		err := bots.Bot(ctx, connection, listener)
 		if err != nil {
 			log.Println(err)
 		}

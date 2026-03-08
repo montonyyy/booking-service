@@ -3,7 +3,9 @@ package features
 import (
 	"booking-service/tools"
 	"context"
+	"fmt"
 	"log"
+	"strings"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -23,7 +25,16 @@ func InsertRow(ctx context.Context, conn *pgxpool.Pool, booking *tools.Booking) 
 	)
 	if err != nil {
 		log.Println(err)
+	} else {
+		payload := fmt.Sprintf("Данные добавлены: %s, %s", booking.UserName, booking.UserPhone)
+		payload = strings.ReplaceAll(payload, "'", "''")
+		query := fmt.Sprintf("NOTIFY updates, '%s'", payload)
+		_, err := conn.Exec(ctx, query)
+		if err != nil {
+			log.Println(err)
+		}
 	}
+
 	return err
 }
 
@@ -66,6 +77,11 @@ func DeleteRow(ctx context.Context, conn *pgxpool.Pool, booking *tools.Booking) 
 	_, err := conn.Exec(ctx, query, booking.ID)
 	if err != nil {
 		log.Println(err)
+	} else {
+		_, err := conn.Exec(ctx, "NOTIFY updates, 'Данные удалены'")
+		if err != nil {
+			log.Println(err)
+		}
 	}
 	return err
 

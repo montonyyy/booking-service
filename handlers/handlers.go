@@ -32,7 +32,9 @@ func (c *Conn) SqlHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		} else {
 			w.WriteHeader(http.StatusOK)
-			w.Write(tableMarshal)
+			if _, err := w.Write(tableMarshal); err != nil {
+				log.Panic(err)
+			}
 		}
 
 	case http.MethodPost:
@@ -55,7 +57,9 @@ func (c *Conn) SqlHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		w.WriteHeader(http.StatusOK)
-		w.Write(body)
+		if _, err := w.Write(body); err != nil {
+			log.Panic(err)
+		}
 
 	case http.MethodDelete:
 		var booking *tools.Booking
@@ -77,11 +81,15 @@ func (c *Conn) SqlHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		w.WriteHeader(http.StatusOK)
-		w.Write(body)
+		if _, err := w.Write(body); err != nil {
+			log.Panic(err)
+		}
 
 	default:
 		w.WriteHeader(http.StatusBadRequest)
-		w.Write([]byte(`{"error":"unsupported method"}`))
+		if _, err := w.Write([]byte(`{"error":"unsupported method"}`)); err != nil {
+			log.Panic(err)
+		}
 	}
 }
 
@@ -93,6 +101,7 @@ func writeError(w http.ResponseWriter, error error, status int) {
 		log.Println(err)
 		return
 	}
-	w.Write(bodyWithError)
-
+	if _, err := w.Write(bodyWithError); err != nil {
+		log.Panic(err)
+	}
 }

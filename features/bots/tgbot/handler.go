@@ -23,14 +23,18 @@ func Handler(ctx context.Context, conn *pgxpool.Pool, bot *tgbotapi.BotAPI, u *t
 		msg := tgbotapi.NewMessage(u.Message.Chat.ID, `
 			/list - показать бронирования
 			`)
-		bot.Send(msg)
+		if _, err := bot.Send(msg); err != nil {
+			log.Panic(err)
+		}
 
 	case "/list":
 		var lines []string
 		table, err := features.SelectAll(ctx, conn)
 		if err != nil {
 			msg := tgbotapi.NewMessage(u.Message.Chat.ID, "Ошибка при получении данных")
-			bot.Send(msg)
+			if _, err := bot.Send(msg); err != nil {
+				log.Panic(err)
+			}
 			break
 		}
 
@@ -47,7 +51,9 @@ func Handler(ctx context.Context, conn *pgxpool.Pool, bot *tgbotapi.BotAPI, u *t
 		}
 
 		msg := tgbotapi.NewMessage(u.Message.Chat.ID, strings.Join(lines, "\n"))
-		bot.Send(msg)
+		if _, err := bot.Send(msg); err != nil {
+			log.Panic(err)
+		}
 
 	case "/add":
 		booking := &tools.Booking{}
@@ -56,35 +62,45 @@ func Handler(ctx context.Context, conn *pgxpool.Pool, bot *tgbotapi.BotAPI, u *t
 					Чтобы добавить запись, введите следующие значения:
 					{place_id} {user_name} {user_phone} {start_time} {end_time}
 					`)
-		bot.Send(msg)
+		if _, err := bot.Send(msg); err != nil {
+			log.Panic(err)
+		}
 
 		nextUpdate := WaitNextUpdate(*updates)
 		if nextUpdate == nil {
 			msg := tgbotapi.NewMessage(u.Message.Chat.ID, "Время ввода данных истекло. Повторите попытку")
-			bot.Send(msg)
+			if _, err := bot.Send(msg); err != nil {
+				log.Panic(err)
+			}
 			break
 		}
 
 		if len(strings.Split(nextUpdate.Message.Text, " ")) == 5 {
 
-			fmt.Sscanf(nextUpdate.Message.Text, "%d %s %s %s %s",
+			if _, err := fmt.Sscanf(nextUpdate.Message.Text, "%d %s %s %s %s",
 				&booking.PlaceID,
 				&booking.UserName,
 				&booking.UserPhone,
 				&booking.StartTime,
 				&booking.EndTime,
-			)
+			); err != nil {
+				log.Panic(err)
+			}
 		} else {
 			log.Println("Ошибка при чтении данных")
 			msg := tgbotapi.NewMessage(nextUpdate.Message.Chat.ID, "Ошибка при чтении данных")
-			bot.Send(msg)
+			if _, err := bot.Send(msg); err != nil {
+				log.Panic(err)
+			}
 			break
 		}
 
 		err = features.InsertRow(ctx, conn, booking)
 		if err != nil {
 			msg := tgbotapi.NewMessage(nextUpdate.Message.Chat.ID, "Ошибка при вставки данных")
-			bot.Send(msg)
+			if _, err := bot.Send(msg); err != nil {
+				log.Panic(err)
+			}
 			break
 		}
 
@@ -95,31 +111,41 @@ func Handler(ctx context.Context, conn *pgxpool.Pool, bot *tgbotapi.BotAPI, u *t
 				Чтобы удалить запись, введите следующее значение:
 				{id}
 				`)
-		bot.Send(msg)
+		if _, err := bot.Send(msg); err != nil {
+			log.Panic(err)
+		}
 
 		nextUpdate := WaitNextUpdate(*updates)
 		if nextUpdate == nil {
 			msg := tgbotapi.NewMessage(u.Message.Chat.ID, "Время ввода данных истекло. Повторите попытку")
-			bot.Send(msg)
+			if _, err := bot.Send(msg); err != nil {
+				log.Panic(err)
+			}
 			break
 		}
 
 		if len(strings.Split(nextUpdate.Message.Text, " ")) == 1 {
 
-			fmt.Sscanf(nextUpdate.Message.Text, "%d",
+			if _, err := fmt.Sscanf(nextUpdate.Message.Text, "%d",
 				&booking.ID,
-			)
+			); err != nil {
+				log.Panic(err)
+			}
 		} else {
 			log.Println("Ошибка при чтении данных")
 			msg := tgbotapi.NewMessage(nextUpdate.Message.Chat.ID, "Ошибка при чтении данных")
-			bot.Send(msg)
+			if _, err := bot.Send(msg); err != nil {
+				log.Panic(err)
+			}
 			break
 		}
 
 		err = features.DeleteRow(ctx, conn, booking)
 		if err != nil {
 			msg := tgbotapi.NewMessage(nextUpdate.Message.Chat.ID, "Ошибка при удалении данных")
-			bot.Send(msg)
+			if _, err := bot.Send(msg); err != nil {
+				log.Panic(err)
+			}
 			break
 		}
 	}

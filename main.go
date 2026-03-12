@@ -39,7 +39,9 @@ func main() {
 		log.Println(err)
 	}
 	defer listener.Close(ctx)
-	listener.Exec(ctx, "LISTEN updates")
+	if _, err := listener.Exec(ctx, "LISTEN updates"); err != nil {
+		log.Println(err)
+	}
 
 	var conn = &handlers.Conn{
 		Conn: connection,

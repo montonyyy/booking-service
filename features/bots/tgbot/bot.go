@@ -32,7 +32,9 @@ func Bot(ctx context.Context, conn *pgxpool.Pool, listener *pgx.Conn) error {
 			}
 
 			msg := tgbotapi.NewMessage(int64(userID), notification.Payload)
-			bot.Send(msg)
+			if _, err := bot.Send(msg); err != nil {
+				log.Panic(err)
+			}
 		}
 	}()
 

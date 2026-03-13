@@ -6,7 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"io"
-	"log"
+	"log/slog"
 	"net/http"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -33,7 +33,7 @@ func (c *Conn) SqlHandler(w http.ResponseWriter, r *http.Request) {
 		} else {
 			w.WriteHeader(http.StatusOK)
 			if _, err := w.Write(tableMarshal); err != nil {
-				log.Panic(err)
+				slog.Error(err.Error())
 			}
 		}
 
@@ -45,20 +45,18 @@ func (c *Conn) SqlHandler(w http.ResponseWriter, r *http.Request) {
 			writeError(w, err, http.StatusInternalServerError)
 			return
 		}
-		err = json.Unmarshal(body, &booking)
-		if err != nil {
+		if err := json.Unmarshal(body, &booking); err != nil {
 			writeError(w, err, http.StatusBadRequest)
 			return
 		}
 
-		err = features.InsertRow(c.Ctx, c.Conn, booking)
-		if err != nil {
+		if err := features.InsertRow(c.Ctx, c.Conn, booking); err != nil {
 			writeError(w, err, http.StatusInternalServerError)
 			return
 		}
-		w.WriteHeader(http.StatusOK)
+		w.WriteHeader(http.StatusCreated)
 		if _, err := w.Write(body); err != nil {
-			log.Panic(err)
+			slog.Error(err.Error())
 		}
 
 	case http.MethodDelete:
@@ -69,27 +67,40 @@ func (c *Conn) SqlHandler(w http.ResponseWriter, r *http.Request) {
 			writeError(w, err, http.StatusInternalServerError)
 			return
 		}
-		err = json.Unmarshal(body, &booking)
-		if err != nil {
+		if err := json.Unmarshal(body, &booking); err != nil {
 			writeError(w, err, http.StatusBadRequest)
 			return
 		}
 
-		err = features.DeleteRow(c.Ctx, c.Conn, booking)
+		if err := features.DeleteRow(c.Ctx, c.Conn, booking); err != nil {
+			writeError(w, err, http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+
+	case http.MethodPatch:
+		var booking *tools.Booking
+
+		body, err := io.ReadAll(r.Body)
 		if err != nil {
 			writeError(w, err, http.StatusInternalServerError)
 			return
 		}
-		w.WriteHeader(http.StatusOK)
-		if _, err := w.Write(body); err != nil {
-			log.Panic(err)
+
+		if err := json.Unmarshal(body, &booking); err != nil {
+			writeError(w, err, http.StatusBadRequest)
+			return
 		}
+
+		if err := features.UpdateRow(c.Ctx, c.Conn, booking); err != nil {
+			writeError(w, err, http.StatusInternalServerError)
+			return
+		}
+
+		w.WriteHeader(http.StatusNoContent)
 
 	default:
 		w.WriteHeader(http.StatusBadRequest)
-		if _, err := w.Write([]byte(`{"error":"unsupported method"}`)); err != nil {
-			log.Panic(err)
-		}
 	}
 }
 
@@ -98,10 +109,10 @@ func writeError(w http.ResponseWriter, error error, status int) {
 	bodyWithError, err := json.Marshal(error)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
-		log.Println(err)
+		slog.Error(err.Error())
 		return
 	}
 	if _, err := w.Write(bodyWithError); err != nil {
-		log.Panic(err)
+		slog.Error(err.Error())
 	}
 }

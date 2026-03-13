@@ -4,7 +4,6 @@ import (
 	"booking-service/tools"
 	"context"
 	"fmt"
-	"log"
 	"strings"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -14,7 +13,7 @@ func InsertRow(ctx context.Context, conn *pgxpool.Pool, booking *tools.Booking) 
 	query := `INSERT INTO bookings (place_id, user_name, user_phone, start_time, end_time)
 	 		VALUES ($1, $2, $3, $4, $5);`
 
-	_, err := conn.Exec(
+	if _, err := conn.Exec(
 		ctx,
 		query,
 		booking.PlaceID,
@@ -22,20 +21,19 @@ func InsertRow(ctx context.Context, conn *pgxpool.Pool, booking *tools.Booking) 
 		booking.UserPhone,
 		booking.StartTime,
 		booking.EndTime,
-	)
-	if err != nil {
-		log.Println(err)
-	} else {
-		payload := fmt.Sprintf("Данные добавлены: %s, %s", booking.UserName, booking.UserPhone)
-		payload = strings.ReplaceAll(payload, "'", "''")
-		query := fmt.Sprintf("NOTIFY updates, '%s'", payload)
-		_, err := conn.Exec(ctx, query)
-		if err != nil {
-			log.Println(err)
-		}
+	); err != nil {
+		return err
 	}
 
-	return err
+	payload := fmt.Sprintf("Данные добавлены: %s, %s", booking.UserName, booking.UserPhone)
+	payload = strings.ReplaceAll(payload, "'", "''")
+
+	query = fmt.Sprintf("NOTIFY updates, '%s'", payload)
+
+	if _, err := conn.Exec(ctx, query); err != nil {
+		return err
+	}
+	return nil
 }
 
 func SelectAll(ctx context.Context, conn *pgxpool.Pool) ([]tools.Booking, error) {
@@ -46,25 +44,22 @@ func SelectAll(ctx context.Context, conn *pgxpool.Pool) ([]tools.Booking, error)
 
 	rows, err := conn.Query(ctx, query)
 	if err != nil {
-		log.Println(err)
 		return []tools.Booking{}, err
 	}
 	defer rows.Close()
 
 	for rows.Next() {
-		err := rows.Scan(
+		if err := rows.Scan(
 			&booking.ID,
 			&booking.PlaceID,
 			&booking.UserName,
 			&booking.UserPhone,
 			&booking.StartTime,
 			&booking.EndTime,
-		)
-
-		if err != nil {
-			log.Println(err)
+		); err != nil {
 			return []tools.Booking{}, err
 		}
+
 		bookings = append(bookings, booking)
 	}
 
@@ -74,15 +69,25 @@ func SelectAll(ctx context.Context, conn *pgxpool.Pool) ([]tools.Booking, error)
 func DeleteRow(ctx context.Context, conn *pgxpool.Pool, booking *tools.Booking) error {
 	query := `DELETE FROM bookings WHERE id = $1;`
 
-	_, err := conn.Exec(ctx, query, booking.ID)
-	if err != nil {
-		log.Println(err)
-	} else {
-		_, err := conn.Exec(ctx, "NOTIFY updates, 'Данные удалены'")
-		if err != nil {
-			log.Println(err)
-		}
+	if _, err := conn.Exec(ctx, query, booking.ID); err != nil {
+		return err
 	}
-	return err
+	if _, err := conn.Exec(ctx, "NOTIFY updates, 'Данные удалены'"); err != nil {
+		return err
+	}
+	return nil
+}
 
+func UpdateRow(ctx context.Context, conn *pgxpool.Pool, booking *tools.Booking) error {
+	query := `UPDATE bookings
+				SET start_time=$1, end_time=$2
+				WHERE id=$3;`
+
+	if _, err := conn.Exec(ctx, query, booking.StartTime, booking.EndTime, booking.ID); err != nil {
+		return err
+	}
+	if _, err := conn.Exec(ctx, "NOTIFY updates, 'Данные обновлены'"); err != nil {
+		return err
+	}
+	return nil
 }

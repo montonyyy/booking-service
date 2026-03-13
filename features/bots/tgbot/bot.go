@@ -3,7 +3,7 @@ package bots
 import (
 	"context"
 	"errors"
-	"log"
+	"log/slog"
 	"os"
 	"strconv"
 
@@ -27,19 +27,19 @@ func Bot(ctx context.Context, conn *pgxpool.Pool, listener *pgx.Conn) error {
 		for {
 			notification, err := listener.WaitForNotification(ctx)
 			if err != nil {
-				log.Println(err)
+				slog.Error(err.Error())
 				return
 			}
 
 			msg := tgbotapi.NewMessage(int64(userID), notification.Payload)
 			if _, err := bot.Send(msg); err != nil {
-				log.Panic(err)
+				slog.Error(err.Error())
 			}
 		}
 	}()
 
 	u := tgbotapi.NewUpdate(0)
-	u.Timeout = 30
+	u.Timeout = 60
 	updates := bot.GetUpdatesChan(u)
 
 	for update := range updates {
@@ -53,10 +53,12 @@ func Bot(ctx context.Context, conn *pgxpool.Pool, listener *pgx.Conn) error {
 
 		err := Handler(ctx, conn, bot, &update, &updates)
 		if err != nil {
-			return err
+			msg := tgbotapi.NewMessage(int64(userID), "error: "+err.Error())
+			if _, err := bot.Send(msg); err != nil {
+				slog.Error(err.Error())
+			}
+			slog.Error(err.Error())
 		}
-
 	}
-
 	return nil
 }

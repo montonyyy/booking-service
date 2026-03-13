@@ -4,7 +4,7 @@ import (
 	bots "booking-service/features/bots/tgbot"
 	"booking-service/handlers"
 	"context"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
@@ -25,22 +25,21 @@ func main() {
 	}
 
 	server := &http.Server{Addr: port}
-
 	connection, err := pgxpool.New(ctx, os.Getenv("CONN_STRING"))
 
 	if err != nil {
-		log.Println("Ошибка при подключении к БД")
-		log.Panic(err)
+		slog.Error(err.Error())
 	}
 	defer connection.Close()
 
 	listener, err := pgx.Connect(ctx, os.Getenv("CONN_STRING"))
 	if err != nil {
-		log.Println(err)
+		slog.Error(err.Error())
 	}
 	defer listener.Close(ctx)
+
 	if _, err := listener.Exec(ctx, "LISTEN updates"); err != nil {
-		log.Println(err)
+		slog.Error(err.Error())
 	}
 
 	var conn = &handlers.Conn{
@@ -53,26 +52,25 @@ func main() {
 	go func() {
 		err := bots.Bot(ctx, connection, listener)
 		if err != nil {
-			log.Println(err)
+			slog.Error(err.Error())
 		}
 	}()
 
 	go func() {
 		err = http.ListenAndServe(port, nil)
-		log.Println(err)
+
+		slog.Info(err.Error())
 	}()
 
 	<-ctx.Done()
-	log.Println("Завершение работы")
+	slog.Info("Завершение работы")
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	defer cancel()
 
-	err = server.Shutdown(shutdownCtx)
-	if err != nil {
-		log.Panic(err)
+	if err := server.Shutdown(shutdownCtx); err != nil {
+		slog.Error(err.Error())
 	}
 
-	log.Println("Сервер остановлен")
-
+	slog.Info("Сервер остановлен")
 }

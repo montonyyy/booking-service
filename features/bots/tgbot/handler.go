@@ -4,8 +4,8 @@ import (
 	features "booking-service/features/sql"
 	"booking-service/tools"
 	"context"
+	"errors"
 	"fmt"
-	"log"
 	"strings"
 	"time"
 
@@ -14,28 +14,24 @@ import (
 )
 
 func Handler(ctx context.Context, conn *pgxpool.Pool, bot *tgbotapi.BotAPI, u *tgbotapi.Update, updates *tgbotapi.UpdatesChannel) error {
-
-	var err error = nil
-
 	switch u.Message.Text {
-
 	case "/start":
 		msg := tgbotapi.NewMessage(u.Message.Chat.ID, `
 			/list - показать бронирования
+			/add - добавить бронирование
+			/del - удалить бронирование
+			/rep - изменить бронирование
 			`)
+
 		if _, err := bot.Send(msg); err != nil {
-			log.Panic(err)
+			return err
 		}
 
 	case "/list":
 		var lines []string
 		table, err := features.SelectAll(ctx, conn)
 		if err != nil {
-			msg := tgbotapi.NewMessage(u.Message.Chat.ID, "Ошибка при получении данных")
-			if _, err := bot.Send(msg); err != nil {
-				log.Panic(err)
-			}
-			break
+			return err
 		}
 
 		for _, line := range table {
@@ -52,7 +48,7 @@ func Handler(ctx context.Context, conn *pgxpool.Pool, bot *tgbotapi.BotAPI, u *t
 
 		msg := tgbotapi.NewMessage(u.Message.Chat.ID, strings.Join(lines, "\n"))
 		if _, err := bot.Send(msg); err != nil {
-			log.Panic(err)
+			return err
 		}
 
 	case "/add":
@@ -63,20 +59,15 @@ func Handler(ctx context.Context, conn *pgxpool.Pool, bot *tgbotapi.BotAPI, u *t
 					{place_id} {user_name} {user_phone} {start_time} {end_time}
 					`)
 		if _, err := bot.Send(msg); err != nil {
-			log.Panic(err)
+			return err
 		}
 
 		nextUpdate := WaitNextUpdate(*updates)
 		if nextUpdate == nil {
-			msg := tgbotapi.NewMessage(u.Message.Chat.ID, "Время ввода данных истекло. Повторите попытку")
-			if _, err := bot.Send(msg); err != nil {
-				log.Panic(err)
-			}
-			break
+			return errors.New("time for data entry has expired")
 		}
 
 		if len(strings.Split(nextUpdate.Message.Text, " ")) == 5 {
-
 			if _, err := fmt.Sscanf(nextUpdate.Message.Text, "%d %s %s %s %s",
 				&booking.PlaceID,
 				&booking.UserName,
@@ -84,24 +75,14 @@ func Handler(ctx context.Context, conn *pgxpool.Pool, bot *tgbotapi.BotAPI, u *t
 				&booking.StartTime,
 				&booking.EndTime,
 			); err != nil {
-				log.Panic(err)
+				return err
 			}
 		} else {
-			log.Println("Ошибка при чтении данных")
-			msg := tgbotapi.NewMessage(nextUpdate.Message.Chat.ID, "Ошибка при чтении данных")
-			if _, err := bot.Send(msg); err != nil {
-				log.Panic(err)
-			}
-			break
+			return errors.New("incorrect data entry format")
 		}
 
-		err = features.InsertRow(ctx, conn, booking)
-		if err != nil {
-			msg := tgbotapi.NewMessage(nextUpdate.Message.Chat.ID, "Ошибка при вставки данных")
-			if _, err := bot.Send(msg); err != nil {
-				log.Panic(err)
-			}
-			break
+		if err := features.InsertRow(ctx, conn, booking); err != nil {
+			return err
 		}
 
 	case "/del":
@@ -111,46 +92,61 @@ func Handler(ctx context.Context, conn *pgxpool.Pool, bot *tgbotapi.BotAPI, u *t
 				Чтобы удалить запись, введите следующее значение:
 				{id}
 				`)
+
 		if _, err := bot.Send(msg); err != nil {
-			log.Panic(err)
+			return err
 		}
 
 		nextUpdate := WaitNextUpdate(*updates)
 		if nextUpdate == nil {
-			msg := tgbotapi.NewMessage(u.Message.Chat.ID, "Время ввода данных истекло. Повторите попытку")
-			if _, err := bot.Send(msg); err != nil {
-				log.Panic(err)
-			}
-			break
+			return errors.New("time for data entry has expired")
 		}
 
 		if len(strings.Split(nextUpdate.Message.Text, " ")) == 1 {
-
 			if _, err := fmt.Sscanf(nextUpdate.Message.Text, "%d",
 				&booking.ID,
 			); err != nil {
-				log.Panic(err)
+				return err
 			}
 		} else {
-			log.Println("Ошибка при чтении данных")
-			msg := tgbotapi.NewMessage(nextUpdate.Message.Chat.ID, "Ошибка при чтении данных")
-			if _, err := bot.Send(msg); err != nil {
-				log.Panic(err)
-			}
-			break
+			return errors.New("incorrect data entry format")
 		}
 
-		err = features.DeleteRow(ctx, conn, booking)
-		if err != nil {
-			msg := tgbotapi.NewMessage(nextUpdate.Message.Chat.ID, "Ошибка при удалении данных")
-			if _, err := bot.Send(msg); err != nil {
-				log.Panic(err)
+		if err := features.DeleteRow(ctx, conn, booking); err != nil {
+			return err
+		}
+
+	case "/rep":
+		booking := &tools.Booking{}
+
+		msg := tgbotapi.NewMessage(u.Message.Chat.ID, `
+				Чтобы изменить запись, введите следующее значение:
+				{ID изм. записи} {Новая нач. дата} {Новая кон. дата}
+				`)
+		if _, err := bot.Send(msg); err != nil {
+			return err
+		}
+
+		nextUpdate := WaitNextUpdate(*updates)
+		if nextUpdate == nil {
+			return errors.New("time for data entry has expired")
+		}
+
+		if len(strings.Split(nextUpdate.Message.Text, " ")) == 3 {
+			if _, err := fmt.Sscanf(nextUpdate.Message.Text, "%d %s %s",
+				&booking.ID, &booking.StartTime, &booking.EndTime,
+			); err != nil {
+				return err
 			}
-			break
+		} else {
+			return errors.New("incorrect data entry format")
+		}
+
+		if err := features.UpdateRow(ctx, conn, booking); err != nil {
+			return err
 		}
 	}
-
-	return err
+	return nil
 }
 
 func WaitNextUpdate(updates tgbotapi.UpdatesChannel) *tgbotapi.Update {
